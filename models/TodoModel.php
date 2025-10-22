@@ -4,20 +4,24 @@ class TodoModel {
     private $db;
 
     public function __construct() {
-        // GANTI DENGAN KONFIGURASI DATABASE ANDA
-        $host = 'localhost';
-        $port = '5432';
-        $dbname = 'db_todo'; 
-        $user = 'postgres'; 
-        $password = 'postgres'; 
+    // Memanggil file konfigurasi Anda
+    // Pastikan path ini benar. Jika config.php ada di folder root, path ini seharusnya sudah tepat.
+    require_once __DIR__ . '/../config.php';
 
-        try {
-            $this->db = new PDO("pgsql:host=$host;port=$port;dbname=$dbname", $user, $password);
-            $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        } catch (PDOException $e) {
-            die("Koneksi database gagal: " . $e->getMessage());
-        }
+    // Menggunakan konstanta dari config.php
+    $host = DB_HOST;
+    $port = DB_PORT;
+    $dbname = DB_NAME;
+    $user = DB_USER;
+    $password = DB_PASSWORD;
+
+    try {
+        $this->db = new PDO("pgsql:host=$host;port=$port;dbname=$dbname", $user, $password);
+        $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    } catch (PDOException $e) {
+        die("Koneksi database gagal: " . $e->getMessage());
     }
+}
 
     /**
      * Mengambil semua todo dengan filter dan pencarian.
