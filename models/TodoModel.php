@@ -1,4 +1,4 @@
-Koneksi database gagal: SQLSTATE[08006] [7] connection to server at "localhost" (::1), port 5432 failed: FATAL: password authentication failed for user "user_database_anda"<?php
+<?php
 
 class TodoModel {
     private $db;
@@ -66,22 +66,20 @@ class TodoModel {
      * Disesuaikan untuk kolom 'activity' dan 'description'.
      */
     public function addTodo($activity, $description) {
-        if ($this->isActivityExists($activity)) {
-            return false; // Judul sudah ada
-        }
-
-        $stmt = $this->db->query("SELECT COALESCE(MAX(sort_order), 0) FROM todo");
-        $maxOrder = $stmt->fetchColumn();
-        $newOrder = $maxOrder + 1;
-
-        $sql = "INSERT INTO todo (activity, description, sort_order) VALUES (:activity, :description, :sort_order)";
-        $stmt = $this->db->prepare($sql);
-        return $stmt->execute([
-            ':activity' => $activity,
-            ':description' => $description,
-            ':sort_order' => $newOrder
-        ]);
+    $checkStmt = $this->db->prepare("SELECT COUNT(*) FROM todo WHERE activity = :activity");
+    $checkStmt->execute([':activity' => $activity]);
+    if ($checkStmt->fetchColumn() > 0) {
+        return false; 
     }
+
+    $sql = "INSERT INTO todo (activity, description) VALUES (:activity, :description)";
+    $stmt = $this->db->prepare($sql);
+    
+    return $stmt->execute([
+        ':activity' => $activity,
+        ':description' => $description
+    ]);
+}
 
     public function deleteTodo($id) {
         $stmt = $this->db->prepare("DELETE FROM todo WHERE id = :id");

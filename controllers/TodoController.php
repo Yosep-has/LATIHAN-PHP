@@ -19,23 +19,26 @@ class TodoController {
     }
 
     public function add() {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $activity = trim($_POST['activity']); // Disesuaikan
-            $description = trim($_POST['description']); // Disesuaikan
-            
-            if (empty($activity)) {
-                header('Location: /');
-                exit;
-            }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $activity = trim($_POST['activity']);
+        $description = trim($_POST['description']);
 
-            if (!$this->model->addTodo($activity, $description)) {
-                session_start();
-                $_SESSION['error'] = "Aktivitas '$activity' sudah ada. Gunakan nama lain.";
-            }
+        if (empty($activity)) {
+            // Langsung redirect jika input kosong
+            header('Location: /');
+            exit;
         }
+
+        
+        if (!$this->model->addTodo($activity, $description)) {
+            session_start();
+            $_SESSION['error'] = "Aktivitas '$activity' sudah ada. Gunakan nama lain.";
+        }
+
         header('Location: /');
         exit;
     }
+}
 
     public function delete() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
