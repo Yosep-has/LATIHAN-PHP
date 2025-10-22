@@ -1,51 +1,121 @@
+Koneksi database gagal: SQLSTATE[08006] [7] connection to server at "localhost" (::1), port 5432 failed: FATAL: password authentication failed for user "user_database_anda"<?php
 
-<?php
-require_once (__DIR__ . '/../config.php');
+class TodoModel {
+    private $db;
 
-class TodoModel
-{
-    private $conn;
+    public function __construct() {
+        // GANTI DENGAN KONFIGURASI DATABASE ANDA
+        $host = 'localhost';
+        $port = '5432';
+        $dbname = 'db_todo'; 
+        $user = 'postgres'; 
+        $password = 'postgres'; 
 
-    public function __construct()
-    {
-        // Inisialisasi koneksi database PostgreSQL
-        $this->conn = pg_connect('host=' . DB_HOST . ' port=' . DB_PORT . ' dbname=' . DB_NAME . ' user=' . DB_USER . ' password=' . DB_PASSWORD);
-        if (!$this->conn) {
-            die('Koneksi database gagal');
+        try {
+            $this->db = new PDO("pgsql:host=$host;port=$port;dbname=$dbname", $user, $password);
+            $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        } catch (PDOException $e) {
+            die("Koneksi database gagal: " . $e->getMessage());
         }
     }
 
-    public function getAllTodos()
-    {
-        $query = 'SELECT * FROM todo';
-        $result = pg_query($this->conn, $query);
-        $todos = [];
-        if ($result && pg_num_rows($result) > 0) {
-            while ($row = pg_fetch_assoc($result)) {
-                $todos[] = $row;
+    /**
+     * Mengambil semua todo dengan filter dan pencarian.
+     * Disesuaikan untuk kolom 'activity' dan 'status'.
+     */
+    public function getAllTodos($filterStatus = 'semua', $search = '') {
+        $sql = "SELECT * FROM todo";
+        $params = [];
+        $whereClauses = [];
+
+        if ($filterStatus === 'selesai') {
+            $whereClauses[] = "status = 1";
+        } elseif ($filterStatus === 'belum_selesai') {
+            $whereClauses[] = "status = 0";
+        }
+
+        if (!empty($search)) {
+            $whereClauses[] = "(activity ILIKE :search OR description ILIKE :search)";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        if (!empty($whereClauses)) {
+            $sql .= " WHERE " . implode(' AND ', $whereClauses);
+        }
+
+        // Menggunakan sort_order jika ada, jika tidak urutkan berdasarkan created_at
+        $sql .= " ORDER BY sort_order ASC, created_at DESC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    public function getTodoById($id) {
+        $stmt = $this->db->prepare("SELECT * FROM todo WHERE id = :id");
+        $stmt->execute([':id' => $id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Menambahkan todo baru.
+     * Disesuaikan untuk kolom 'activity' dan 'description'.
+     */
+    public function addTodo($activity, $description) {
+        if ($this->isActivityExists($activity)) {
+            return false; // Judul sudah ada
+        }
+
+        $stmt = $this->db->query("SELECT COALESCE(MAX(sort_order), 0) FROM todo");
+        $maxOrder = $stmt->fetchColumn();
+        $newOrder = $maxOrder + 1;
+
+        $sql = "INSERT INTO todo (activity, description, sort_order) VALUES (:activity, :description, :sort_order)";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute([
+            ':activity' => $activity,
+            ':description' => $description,
+            ':sort_order' => $newOrder
+        ]);
+    }
+
+    public function deleteTodo($id) {
+        $stmt = $this->db->prepare("DELETE FROM todo WHERE id = :id");
+        return $stmt->execute([':id' => $id]);
+    }
+
+    /**
+     * Mengubah status (0 atau 1).
+     * Trigger database akan menangani 'updated_at' secara otomatis.
+     */
+    public function updateTodoStatus($id, $status) {
+        $sql = "UPDATE todo SET status = :status WHERE id = :id";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute([
+            ':id' => $id,
+            ':status' => $status
+        ]);
+    }
+
+    public function isActivityExists($activity) {
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM todo WHERE activity = :activity");
+        $stmt->execute([':activity' => $activity]);
+        return $stmt->fetchColumn() > 0;
+    }
+    
+    public function updateOrder(array $todoIds) {
+        $this->db->beginTransaction();
+        try {
+            foreach ($todoIds as $index => $id) {
+                $sql = "UPDATE todo SET sort_order = :order WHERE id = :id";
+                $stmt = $this->db->prepare($sql);
+                $stmt->execute([':order' => $index + 1, ':id' => $id]);
             }
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            return false;
         }
-        return $todos;
-    }
-
-    public function createTodo($activity)
-    {
-        $query = 'INSERT INTO todo (activity) VALUES ($1)';
-        $result = pg_query_params($this->conn, $query, [$activity]);
-        return $result !== false;
-    }
-
-    public function updateTodo($id, $activity, $status)
-    {
-        $query = 'UPDATE todo SET activity=$1, status=$2 WHERE id=$3';
-        $result = pg_query_params($this->conn, $query, [$activity, $status, $id]);
-        return $result !== false;
-    }
-
-    public function deleteTodo($id)
-    {
-        $query = 'DELETE FROM todo WHERE id=$1';
-        $result = pg_query_params($this->conn, $query, [$id]);
-        return $result !== false;
     }
 }
